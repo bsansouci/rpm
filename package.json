@@ -1,15 +1,19 @@
 {
   "name": "rpm",
   "version": "1.0.0",
-  "description": "__please do not use__",
+  "description": "Rust Package Manager (NPM for Cargo)",
   "main": "cargo-install.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "node_modules/.bin/babel cargo-install.js > build.js"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
     "request": "^2.58.0",
     "toml-js": "0.0.8"
+  },
+  "devDependencies": {
+    "babel": "^5.8.12",
+    "babel-core": "^5.8.12"
   }
 }

@@ -1,10 +1,19 @@
-const request = require('request');
-const fs = require('fs');
-const toml = require('toml-js');
+import request from 'request';
+import fs from 'fs';
+import toml from 'toml-js';
 
 const args = process.argv;
-if(args.length === 2) {
-  console.log(`Usage: [insert docs here]`);
+
+const docs = `Usage:
+To search for a packge on crates.io run:
+> rpm [s|search] package name
+
+To install a package from crates.io run:
+> rpm [i|install] package name
+`;
+
+if (args.length === 2) {
+  console.log(docs);
 } else {
   const command = args[2];
   const commandArgs = args.slice(3);
@@ -12,48 +21,54 @@ if(args.length === 2) {
   switch (command) {
     case 'i':
     case 'install':
-      request("https://crates.io/api/v1/crates?q=" + commandArgs.join('+') + "&page=1&per_page=10&_=" + Date.now(), (err, res, body) => {
-        if(err) throw err;
-
-        if(res.statusCode !== 200) {
-          throw new Error("Error code wasn't 200: " + res.statusCode);
-        }
-
-        const allCrates = JSON.parse(body);
-        if(allCrates.meta.total === 0) {
-          console.log(`No result found for ${commandArgs.join(' ')}`);
+      fs.readFile('Cargo.toml', 'utf8', function(err, file) {
+        if(err) {
+          console.log('Cargo.toml not there, please run `cargo new hello_world` before installing dependencies.');
           return;
         }
 
-        const first = allCrates.crates[0];
-        console.log(`Number of results: ${allCrates.meta.total} | Using: ${first.id} (${first.max_version}): ${first.description}`);
-        if(first.id !== commandArgs.join(" ")) {
-          console.log(`Warning: install crate which name doesn\'t entirely match! "${first.id}" VS "${commandArgs.join(" ")}".`);
-        }
+        request("https://crates.io/api/v1/crates?q=" + commandArgs.join('+') + "&page=1&per_page=10&_=" + Date.now(), (err, res, body) => {
+          if(err) throw err;
 
-        const file = fs.readFileSync('Cargo.toml', 'utf8');
-        let parsedFile = toml.parse(file);
-
-        // Add dependency field if missing
-        if(!parsedFile.dependencies) parsedFile.dependencies = {};
-
-        // Check if dependency already exist, if so what version it's in
-        if(parsedFile.dependencies[first.id]) {
-          if(parsedFile.dependencies[first.id] !== first.max_version) {
-            console.log(`Dependency "${first.id}" exists already but is at version ${parsedFile.dependencies[first.id]} (latest is ${first.max_version}). Run "rpm u ${first.id}" to update.`);
-          } else {
-            console.log(`Dependency "${first.id}" up to date.`);
+          if(res.statusCode !== 200) {
+            throw new Error("Error code wasn't 200: " + res.statusCode);
           }
-          return; // Stop execution
-        }
 
-        // Add dependency
-        parsedFile.dependencies[first.id] = first.max_version;
+          const allCrates = JSON.parse(body);
+          if(allCrates.meta.total === 0) {
+            console.log(`No result found for ${commandArgs.join(' ')}`);
+            return;
+          }
 
-        // Convert back to string and write to file
-        const retFile = toml.dump(parsedFile);
-        fs.writeFileSync('Cargo.toml', retFile);
-        console.log(`${first.id} install successfully.`);
+          const first = allCrates.crates[0];
+          console.log(`Number of results: ${allCrates.meta.total} | Using: ${first.id} (${first.max_version}): ${first.description}`);
+          if(first.id !== commandArgs.join(" ")) {
+            console.log(`Warning: install crate which name doesn\'t entirely match! "${first.id}" VS "${commandArgs.join(" ")}".`);
+          }
+
+          let parsedFile = toml.parse(file);
+
+          // Add dependency field if missing
+          if(!parsedFile.dependencies) parsedFile.dependencies = {};
+
+          // Check if dependency already exist, if so what version it's in
+          if(parsedFile.dependencies[first.id]) {
+            if(parsedFile.dependencies[first.id] !== first.max_version) {
+              console.log(`Dependency "${first.id}" exists already but is at version ${parsedFile.dependencies[first.id]} (latest is ${first.max_version}). Run "rpm u ${first.id}" to update.`);
+            } else {
+              console.log(`Dependency "${first.id}" up to date.`);
+            }
+            return; // Stop execution
+          }
+
+          // Add dependency
+          parsedFile.dependencies[first.id] = first.max_version;
+
+          // Convert back to string and write to file
+          const retFile = toml.dump(parsedFile);
+          fs.writeFileSync('Cargo.toml', retFile);
+          console.log(`${first.id} install successfully.`);
+        });
       });
       break;
     case 's':
@@ -125,34 +140,4 @@ if(args.length === 2) {
       console.log('Unrecognized command', command);
       break;
   }
-}
-
-// Copy pasted
-function dedent(callSite, ...args) {
-
-    function format(str) {
-
-        let size = -1;
-
-        return str.replace(/\n(\s+)/g, (m, m1) => {
-
-            if (size < 0)
-                size = m1.replace(/\t/g, "    ").length;
-
-            return "\n" + m1.slice(Math.min(m1.length, size));
-        });
-    }
-
-    if (typeof callSite === "string")
-        return format(callSite);
-
-    if (typeof callSite === "function")
-        return (...args) => format(callSite(...args));
-
-    let output = callSite
-        .slice(0, args.length + 1)
-        .map((text, i) => (i === 0 ? "" : args[i - 1]) + text)
-        .join("");
-
-    return format(output);
 }
